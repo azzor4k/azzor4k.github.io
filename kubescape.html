@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đề xuất Tối ưu hóa Kubescape & n8n Workflow</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 40px auto; padding: 20px; background-color: #f4f7f6; }
+        .container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #2980b9; margin-top: 30px; border-left: 5px solid #3498db; padding-left: 15px; }
+        h3 { color: #16a085; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #3498db; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .highlight { background-color: #fff3cd; padding: 2px 5px; border-radius: 3px; font-weight: bold; }
+        .footer { margin-top: 50px; font-size: 0.9em; color: #7f8c8d; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.85em; font-weight: bold; color: white; }
+        .critical { background: #e74c3c; }
+        .high { background: #e67e22; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chiến lược Tối ưu hóa Kubescape & Quản lý lỗ hổng</h1>
+        <p><em>Mục tiêu: Chống tràn token cho LLM và tự động hóa đồng bộ hóa lỗi lên Defect Jojo.</em></p>
+
+        <h2>I. Tối ưu MCP Tool: Giải quyết bài toán Token-Out</h2>
+        <p>Để ngăn chặn việc gửi quá nhiều dữ liệu thô (raw data) vào LLM, chúng ta triển khai lớp <strong>Pre-processing</strong>:</p>
+        <ul>
+            <li><strong>Lọc Severity:</strong> Chỉ giữ lại <span class="badge critical">Critical</span> và <span class="badge high">High</span>. Loại bỏ dữ liệu rác.</li>
+            <li><strong>Nén cấu trúc:</strong> Loại bỏ các trường metadata dư thừa (annotations, labels, full remediation text).</li>
+            <li><strong>Nhóm dữ liệu (Aggregation):</strong> Nhóm các resource bị ảnh hưởng theo <code>Control ID</code> thay vì liệt kê riêng lẻ.</li>
+            <li><strong>Giới hạn:</strong> Đảm bảo file summary cuối cùng luôn <strong>&lt; 2,000 tokens (~5KB)</strong>.</li>
+        </ul>
+
+        <h2>II. Tự động hóa với n8n Workflow</h2>
+        <p>Luồng tích hợp từ Kubescape Scan sang hệ thống quản lý Defect Jojo:</p>
+        
+        <h3>1. Mapping Schema</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Kubescape (Input)</th>
+                    <th>Defect Jojo (Output)</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Critical / High / Medium</td>
+                    <td>P1 / P2 / P3</td>
+                    <td>Phân loại ưu tiên</td>
+                </tr>
+                <tr>
+                    <td>Control ID + Title</td>
+                    <td>Defect Title</td>
+                    <td>Gắn mã định danh chuẩn</td>
+                </tr>
+                <tr>
+                    <td>Resource + Cluster</td>
+                    <td>Affected Component</td>
+                    <td>Xác định vị trí lỗi</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>2. Cơ chế Chống trùng (Deduplication)</h3>
+        <p>Sử dụng <strong>Unique Fingerprint</strong> tạo từ <code>control_id + resource + cluster</code>:</p>
+        <ul>
+            <li><strong>Nếu đã tồn tại:</strong> Cập nhật (Update) trạng thái và timestamp.</li>
+            <li><strong>Nếu chưa tồn tại:</strong> Tạo mới (Create) ticket.</li>
+            <li><strong>Tự động đóng:</strong> Nếu scan mới không còn phát hiện lỗi, tự động chuyển trạng thái ticket sang <code>Closed</code>.</li>
+        </ul>
+
+        <h2>III. So sánh Hiệu quả</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tiêu chí</th>
+                    <th>Trước cải tiến</th>
+                    <th>Sau cải tiến</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Token Usage</td>
+                    <td>Dễ vượt ngưỡng (Crash/Timeout)</td>
+                    <td>Tiết kiệm >80% chi phí</td>
+                </tr>
+                <tr>
+                    <td>Độ chính xác LLM</td>
+                    <td>Nhiễu thông tin, dễ ảo giác</td>
+                    <td>Tập trung, phân tích sắc bén</td>
+                </tr>
+                <tr>
+                    <td>Quản trị dữ liệu</td>
+                    <td>Rời rạc, trùng lặp</td>
+                    <td>Tập trung, có dấu vết (traceability)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>IV. Kế hoạch triển khai (Next Steps)</h2>
+        <ol>
+            <li>Phát triển script Python/Bash xử lý JSON output của Kubescape.</li>
+            <li>Cấu hình System Prompt cho MCP để nhận diện Schema mới.</li>
+            <li>Thiết lập Webhook trên n8n để nhận file <code>kubescape-summary.json</code>.</li>
+            <li>Kiểm thử (Validation) trên môi trường Staging/Prod-like.</li>
+        </ol>
+
+        <div class="footer">
+            Báo cáo được chuẩn hóa cho quy trình Security Automation - 2024
+        </div>
+    </div>
+</body>
+</html>
