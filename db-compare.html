@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Cluster Comparison: PostgreSQL vs MySQL vs MongoDB</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f7f7f7;
+            color: #333;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 30px;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #34495e;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        pre {
+            background: #1e1e1e;
+            color: #00ffcc;
+            padding: 15px;
+            overflow-x: auto;
+            border-radius: 5px;
+        }
+        code {
+            background: #eee;
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Database Cluster Architecture Comparison</h1>
+<p>So sánh đầy đủ kiến trúc cluster, HA, consensus, routing và scaling giữa PostgreSQL, MySQL InnoDB Cluster và MongoDB.</p>
+
+<h2>1. Cluster Capability Comparison</h2>
+
+<table>
+<tr>
+<th>Capability</th>
+<th>PostgreSQL Stack</th>
+<th>MySQL InnoDB Cluster</th>
+<th>MongoDB</th>
+</tr>
+
+<tr><td>Database engine</td><td>PostgreSQL</td><td>MySQL</td><td>mongod</td></tr>
+<tr><td>HA manager</td><td>Patroni</td><td>Group Replication</td><td>Replica Set</td></tr>
+<tr><td>Consensus store</td><td>etcd / Consul</td><td>Built-in (XCom)</td><td>Built-in</td></tr>
+<tr><td>Leader election</td><td>Patroni + etcd</td><td>Automatic</td><td>Automatic</td></tr>
+<tr><td>Automatic failover</td><td>YES</td><td>YES</td><td>YES</td></tr>
+<tr><td>Replication</td><td>Streaming Replication</td><td>Group Replication</td><td>Replica Set Replication</td></tr>
+<tr><td>Replication mode</td><td>Async / Sync</td><td>Async / Semi-sync</td><td>Async / Sync configurable</td></tr>
+<tr><td>Cluster metadata store</td><td>etcd / Consul</td><td>Internal</td><td>Config Server</td></tr>
+<tr><td>Routing layer</td><td>HAProxy</td><td>MySQL Router</td><td>mongos</td></tr>
+<tr><td>Connection pooling</td><td>PgBouncer</td><td>Limited</td><td>Built-in pooling</td></tr>
+<tr><td>Application endpoint</td><td>PgBouncer / HAProxy</td><td>MySQL Router</td><td>mongos</td></tr>
+<tr><td>Split brain protection</td><td>Consensus store</td><td>Built-in consensus</td><td>Built-in consensus</td></tr>
+<tr><td>Cluster state storage</td><td>External</td><td>Internal</td><td>Internal</td></tr>
+<tr><td>Sharding support</td><td>Extension required (Citus/manual)</td><td>External tool required</td><td>Built-in</td></tr>
+<tr><td>Horizontal scaling</td><td>Limited native</td><td>Limited native</td><td>Native</td></tr>
+<tr><td>Read scaling</td><td>YES</td><td>YES</td><td>YES</td></tr>
+<tr><td>Write scaling</td><td>Single primary</td><td>Single / Multi primary possible</td><td>Single primary</td></tr>
+<tr><td>Failover time</td><td>3–10 seconds</td><td>3–10 seconds</td><td>2–5 seconds</td></tr>
+<tr><td>Setup complexity</td><td>High</td><td>Medium</td><td>Low</td></tr>
+<tr><td>Flexibility</td><td>Very high</td><td>Medium</td><td>Medium</td></tr>
+
+</table>
+
+<h2>2. Component Mapping Comparison</h2>
+
+<table>
+
+<tr>
+<th>Role</th>
+<th>PostgreSQL</th>
+<th>MySQL</th>
+<th>MongoDB</th>
+</tr>
+
+<tr><td>Database node</td><td>postgres</td><td>mysqld</td><td>mongod</td></tr>
+<tr><td>HA manager</td><td>Patroni</td><td>Group Replication</td><td>Replica Set</td></tr>
+<tr><td>Consensus</td><td>etcd / Consul</td><td>XCom</td><td>Internal Raft-like</td></tr>
+<tr><td>Router</td><td>HAProxy</td><td>MySQL Router</td><td>mongos</td></tr>
+<tr><td>Connection Pool</td><td>PgBouncer</td><td>Partial</td><td>Built-in</td></tr>
+<tr><td>Metadata store</td><td>etcd</td><td>Internal</td><td>Config Server</td></tr>
+<tr><td>Failover trigger</td><td>Patroni</td><td>Automatic</td><td>Automatic</td></tr>
+
+</table>
+
+<h2>3. Failover Flow Comparison</h2>
+
+<table>
+
+<tr>
+<th>Step</th>
+<th>PostgreSQL</th>
+<th>MySQL</th>
+<th>MongoDB</th>
+</tr>
+
+<tr><td>Failure detection</td><td>Patroni</td><td>Group Replication</td><td>Replica Set</td></tr>
+<tr><td>Consensus validation</td><td>etcd</td><td>XCom</td><td>Internal</td></tr>
+<tr><td>Leader election</td><td>Patroni</td><td>Automatic</td><td>Automatic</td></tr>
+<tr><td>Promote new primary</td><td>Patroni</td><td>Automatic</td><td>Automatic</td></tr>
+<tr><td>Routing update</td><td>HAProxy / PgBouncer</td><td>MySQL Router</td><td>mongos</td></tr>
+<tr><td>Application reconnect needed</td><td>No</td><td>No</td><td>No</td></tr>
+
+</table>
+
+<h2>4. Architecture Flow Examples</h2>
+
+<h3>PostgreSQL Architecture</h3>
+
+<pre>
+Application
+    │
+PgBouncer
+    │
+HAProxy
+    │
+Patroni
+    │
+PostgreSQL Nodes
+    │
+etcd
+</pre>
+
+<h3>MySQL Architecture</h3>
+
+<pre>
+Application
+    │
+MySQL Router
+    │
+InnoDB Cluster
+    │
+MySQL Nodes
+</pre>
+
+<h3>MongoDB Architecture</h3>
+
+<pre>
+Application
+    │
+mongos (Router)
+    │
+Replica Set / Shards
+    │
+Config Servers
+</pre>
+
+<h2>5. Operational Comparison Summary</h2>
+
+<table>
+
+<tr>
+<th>Database</th>
+<th>Cluster Convenience</th>
+<th>Flexibility</th>
+<th>Best Use Case</th>
+</tr>
+
+<tr>
+<td>PostgreSQL</td>
+<td>Hardest setup</td>
+<td>Highest flexibility</td>
+<td>Enterprise, cloud-native, mission critical systems</td>
+</tr>
+
+<tr>
+<td>MySQL</td>
+<td>Medium</td>
+<td>Medium flexibility</td>
+<td>Traditional applications, web systems</td>
+</tr>
+
+<tr>
+<td>MongoDB</td>
+<td>Easiest setup</td>
+<td>Medium flexibility</td>
+<td>Distributed apps, horizontal scaling, microservices</td>
+</tr>
+
+</table>
+
+<h2>6. Key Architecture Takeaways</h2>
+
+<ul>
+
+<li>PostgreSQL uses modular HA architecture with external consensus and routing.</li>
+
+<li>MySQL integrates HA and consensus inside the database engine.</li>
+
+<li>MongoDB is designed as distributed database from the beginning.</li>
+
+<li>PostgreSQL provides highest flexibility and cloud-native compatibility.</li>
+
+<li>MongoDB provides easiest cluster setup.</li>
+
+<li>MySQL provides balanced integration and ease of use.</li>
+
+</ul>
+
+</body>
+</html>
