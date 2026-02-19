@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>How Redis Works - Architecture Overview</title>
+
+<style>
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
+    background-color: #0f172a;
+    color: #e2e8f0;
+    margin: 0;
+    padding: 40px;
+}
+
+h1 {
+    text-align: center;
+    color: #f87171;
+    margin-bottom: 40px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+.card {
+
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    transition: 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card h2 {
+    color: #facc15;
+    margin-top: 0;
+}
+
+.card p {
+    line-height: 1.6;
+}
+
+.code {
+    background: #020617;
+    padding: 12px;
+    border-radius: 6px;
+    font-family: monospace;
+    color: #22c55e;
+    margin-top: 10px;
+}
+
+.highlight {
+    color: #38bdf8;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>How Redis Works — Architecture Explained</h1>
+
+<div class="grid">
+
+<div class="card">
+
+<h2>1. In-Memory Storage</h2>
+
+<p>
+
+Redis stores all data in <span class="highlight">RAM</span> instead of disk.
+
+This eliminates disk seek latency and enables extremely fast reads and writes.
+
+</p>
+
+<div class="code">
+Latency: sub-millisecond (&lt;1ms)
+Storage: RAM
+Performance: extremely fast
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>2. Single-Threaded Execution</h2>
+
+<p>
+
+Redis processes all commands using a single thread.
+
+This avoids locks, race conditions, and context switching overhead.
+
+</p>
+
+<div class="code">
+SET key value
+GET key
+INCR counter
+(All executed sequentially)
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>3. I/O Multiplexing</h2>
+
+<p>
+
+Redis handles thousands of connections using epoll (Linux) or kqueue (macOS).
+
+One thread efficiently manages many clients asynchronously.
+
+</p>
+
+<div class="code">
+Clients → epoll → Redis Thread → Response
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>4. Optimized Data Structures</h2>
+
+<p>
+
+Redis uses specialized data structures for optimal performance depending on use case.
+
+</p>
+
+<div class="code">
+String → Simple values
+
+Hash → Objects
+
+List → Queues
+
+Set → Unique values
+
+Sorted Set → Ranking
+
+Bitmap / HyperLogLog → Analytics
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>5. Pipelining</h2>
+
+<p>
+
+Multiple commands can be sent in one network round-trip.
+
+This significantly improves performance.
+
+</p>
+
+<div class="code">
+Without pipeline:
+Client → Redis → Client → Redis
+
+With pipeline:
+Client → Redis (batch commands)
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>6. Persistence</h2>
+
+<p>
+
+Redis supports durability via disk persistence.
+
+</p>
+
+<div class="code">
+RDB → Snapshot periodically
+
+AOF → Append every write
+
+Hybrid → Recommended production mode
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>7. Replication</h2>
+
+<p>
+
+Redis uses master-replica architecture.
+
+Master handles writes.
+
+Replicas handle reads and redundancy.
+
+</p>
+
+<div class="code">
+Master → Replica 1
+       → Replica 2
+       → Replica N
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>8. Clustering</h2>
+
+<p>
+
+Redis Cluster distributes data across multiple nodes using hash slots.
+
+Total slots: 16384
+
+</p>
+
+<div class="code">
+hash(key) % 16384 → slot → node
+
+Example:
+
+user:1 → slot 100 → Node A
+user:2 → slot 8000 → Node B
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>9. High Availability (Redis Sentinel)</h2>
+
+<p>
+
+Redis Sentinel monitors nodes and performs automatic failover.
+
+</p>
+
+<div class="code">
+Master down → Sentinel detects
+
+Sentinel promotes Replica → New Master
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>10. Typical Production Architecture</h2>
+
+<div class="code">
+
+Application
+
+    │
+
+Redis Cluster
+
+ ├── Master 1 → Replica
+
+ ├── Master 2 → Replica
+
+ └── Master 3 → Replica
+
+Sentinel monitors cluster
+
+</div>
+
+</div>
+
+</div>
+
+</body>
+</html>
