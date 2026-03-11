@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MCP Deployment Blueprint - SecureScan</title>
+
+<style>
+
+body{
+font-family: Arial, Helvetica, sans-serif;
+margin:40px;
+line-height:1.6;
+background:#ffffff;
+color:#222;
+}
+
+h1,h2,h3{
+color:#2c3e50;
+}
+
+pre{
+background:#f4f4f4;
+padding:12px;
+overflow-x:auto;
+border-radius:6px;
+}
+
+.diagram{
+background:#fafafa;
+padding:14px;
+border:1px dashed #bbb;
+margin:15px 0;
+font-family:monospace;
+}
+
+table{
+border-collapse:collapse;
+width:100%;
+margin:20px 0;
+}
+
+th,td{
+border:1px solid #ccc;
+padding:10px;
+}
+
+th{
+background:#f2f2f2;
+}
+
+.good{
+color:green;
+font-weight:bold;
+}
+
+.bad{
+color:#cc0000;
+font-weight:bold;
+}
+
+</style>
+
+<!-- Mermaid support -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({ startOnLoad: true });
+</script>
+
+</head>
+
+<body>
+
+<h1>MCP Deployment Blueprint (SecureScan Example)</h1>
+
+<p>
+Tài liệu mô tả các mô hình triển khai MCP server để AI / IDE truy cập
+hệ thống security nội bộ giả định tên <b>SecureScan</b>.
+</p>
+
+<h2>1. Tổng quan MCP</h2>
+
+<div class="diagram">
+IDE / AI  
+↓  
+MCP Server  
+↓  
+Internal Service (SecureScan)
+</div>
+
+
+<h2>2. Phương án 1 — Shared Token MCP</h2>
+
+<div class="diagram">
+IDE / AI  
+↓  
+MCP Server  
+(shared token)  
+↓  
+SecureScan API
+</div>
+
+<h3>Ví dụ code</h3>
+
+<pre>
+const token = process.env.SECURESCAN_TOKEN
+
+server.tool(
+"securescan_issues",
+{ project: z.string() },
+
+async ({project}) => {
+
+const response = await fetch(
+"https://securescan/api/issues?project=" + project,
+{
+headers:{
+Authorization: `Bearer ${token}`
+}
+}
+)
+
+return response.json()
+
+}
+)
+</pre>
+
+<h3>Ưu điểm</h3>
+
+<ul>
+<li>Triển khai nhanh</li>
+<li>Phù hợp POC</li>
+</ul>
+
+<h3>Nhược điểm</h3>
+
+<ul>
+<li class="bad">Không audit user</li>
+<li class="bad">Token leak → toàn hệ thống bị truy cập</li>
+</ul>
+
+
+<h2>3. Phương án 2 — Per User MCP</h2>
+
+<div class="diagram">
+IDE / AI  
+↓  
+MCP Server  
+(user token)  
+↓  
+SecureScan API
+</div>
+
+<pre>
+server.tool(
+"securescan_issues",
+{ project: z.string() },
+
+async ({project}, ctx) => {
+
+const token = ctx.session.securescan_token
+
+const response = await fetch(
+"https://securescan/api/issues?project=" + project,
+{
+headers:{
+Authorization: `Bearer ${token}`
+}
+}
+)
+
+return response.json()
+
+}
+)
+</pre>
+
+
+<h2>4. Phương án 3 — MCP Gateway + API Proxy</h2>
+
+<div class="diagram">
+IDE / AI  
+↓  
+MCP Gateway  
+↓  
+API Proxy  
+↓  
+Auth / SSO  
+↓  
+Secret Manager  
+↓  
+SecureScan API
+</div>
+
+<h3>Gateway code</h3>
+
+<pre>
+server.tool(
+"securescan_find_issues",
+{ project: z.string() },
+
+async ({ project }, ctx) => {
+
+const response = await fetch(
+`${process.env.API_PROXY}/securescan/issues?project=${project}`,
+{
+headers:{
+Authorization:`Bearer ${ctx.session.access_token}`
+}
+}
+)
+
+return response.json()
+
+}
+)
+</pre>
+
+
+<h2>5. Tech Stack tham khảo</h2>
+
+<table>
+
+<tr>
+<th>Layer</th>
+<th>Tech</th>
+</tr>
+
+<tr>
+<td>MCP Server</td>
+<td>Node.js MCP SDK / Python MCP SDK</td>
+</tr>
+
+<tr>
+<td>API Proxy</td>
+<td>LiteLLM Proxy / Kong / Envoy / NGINX</td>
+</tr>
+
+<tr>
+<td>SSO</td>
+<td>Keycloak / Auth0 / Okta</td>
+</tr>
+
+<tr>
+<td>Secrets</td>
+<td>Vault / AWS Secrets Manager</td>
+</tr>
+
+<tr>
+<td>Observability</td>
+<td>Prometheus / Grafana / OpenTelemetry</td>
+</tr>
+
+<tr>
+<td>Deployment</td>
+<td>Kubernetes / Docker / Helm</td>
+</tr>
+
+</table>
+
+
+<h2>6. Ví dụ LiteLLM làm API Proxy</h2>
+
+<div class="diagram">
+IDE  
+↓  
+MCP Server  
+↓  
+LiteLLM Proxy  
+↓  
+SecureScan API
+</div>
+
+<pre>
+litellm --config config.yaml
+</pre>
+
+<pre>
+model_list:
+- model_name: securescan
+  litellm_params:
+    api_base: https://securescan.internal/api
+</pre>
+
+
+<h2>7. Kubernetes Deployment</h2>
+
+<pre>
+services:
+
+mcp-gateway
+litellm-proxy
+vault
+securescan
+</pre>
+
+<div class="diagram">
+Ingress  
+↓  
+MCP Gateway  
+↓  
+LiteLLM Proxy  
+↓  
+SecureScan
+</div>
+
+
+<h2>8. Threat Model (MCP + AI Access Internal Systems)</h2>
+
+<table>
+
+<tr>
+<th>Threat</th>
+<th>Risk</th>
+<th>Mitigation</th>
+</tr>
+
+<tr>
+<td>Token leakage</td>
+<td>AI tool lộ backend token</td>
+<td>Store token in Vault</td>
+</tr>
+
+<tr>
+<td>Prompt Injection</td>
+<td>AI bị lừa gọi API nhạy cảm</td>
+<td>Tool permission control</td>
+</tr>
+
+<tr>
+<td>Privilege escalation</td>
+<td>User truy cập project khác</td>
+<td>RBAC + per-user token</td>
+</tr>
+
+<tr>
+<td>API abuse</td>
+<td>AI generate request spam</td>
+<td>Rate limiting</td>
+</tr>
+
+<tr>
+<td>Data exfiltration</td>
+<td>AI leak dữ liệu internal</td>
+<td>Proxy filter + logging</td>
+</tr>
+
+</table>
+
+
+<h2>9. Architecture Diagram (Mermaid)</h2>
+
+<div class="mermaid">
+flowchart TD
+
+A[IDE / AI Client]
+B[MCP Gateway]
+C[LiteLLM / API Proxy]
+D[Auth SSO]
+E[Secret Manager]
+F[SecureScan API]
+
+A --> B
+B --> C
+C --> D
+C --> E
+C --> F
+</div>
+
+
+<h2>10. Audit Log</h2>
+
+<pre>
+{
+"user":"dev123",
+"tool":"securescan_find_issues",
+"project":"payment-service",
+"time":"2026-03-11"
+}
+</pre>
+
+
+<h2>11. Rate Limiting</h2>
+
+<pre>
+50 request / minute / user
+</pre>
+
+
+<h2>12. Token Rotation</h2>
+
+<pre>
+create new token
+update vault
+revoke old token
+</pre>
+
+
+<h2>13. Kiến trúc khuyến nghị</h2>
+
+<table>
+
+<tr>
+<th>Scenario</th>
+<th>Recommended</th>
+</tr>
+
+<tr>
+<td>POC</td>
+<td>Shared Token</td>
+</tr>
+
+<tr>
+<td>Small team</td>
+<td>Per-user MCP</td>
+</tr>
+
+<tr>
+<td>Enterprise</td>
+<td>MCP Gateway + API Proxy</td>
+</tr>
+
+</table>
+
+
+</body>
+</html>
