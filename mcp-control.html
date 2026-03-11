@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MCP Control Platform Architecture</title>
+
+<style>
+
+body{
+font-family: Arial, Helvetica, sans-serif;
+margin:40px;
+line-height:1.6;
+background:#ffffff;
+color:#222;
+}
+
+h1,h2,h3{
+color:#2c3e50;
+}
+
+pre{
+background:#f4f4f4;
+padding:12px;
+border-radius:6px;
+overflow-x:auto;
+}
+
+.diagram{
+background:#fafafa;
+border:1px dashed #bbb;
+padding:14px;
+margin:15px 0;
+font-family:monospace;
+}
+
+table{
+border-collapse:collapse;
+width:100%;
+margin:20px 0;
+}
+
+th,td{
+border:1px solid #ccc;
+padding:10px;
+}
+
+th{
+background:#f2f2f2;
+}
+
+.good{
+color:green;
+font-weight:bold;
+}
+
+.bad{
+color:#cc0000;
+font-weight:bold;
+}
+
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({ startOnLoad: true });
+</script>
+
+</head>
+
+<body>
+
+<h1>MCP Control Platform Architecture</h1>
+
+<p>
+Tài liệu mô tả cách xây dựng hệ thống quản lý và kiểm soát MCP Gateway cho AI tools
+truy cập các hệ thống nội bộ như SonarQube, GitLab, Jira, Database hoặc Cloud API.
+</p>
+
+
+<h2>1. MCP Overview</h2>
+
+<div class="diagram">
+
+IDE / AI Client
+↓
+MCP Gateway
+↓
+Internal Services
+
+</div>
+
+<p>
+MCP (Model Context Protocol) cho phép AI tool gọi các service nội bộ thông qua tool interface.
+</p>
+
+
+<h2>2. MCP Deployment Models</h2>
+
+<h3>Model 1 — Shared Token</h3>
+
+<div class="diagram">
+
+IDE
+↓
+MCP Server
+(shared token)
+↓
+Service API
+
+</div>
+
+<ul>
+<li>Simple</li>
+<li>Good for POC</li>
+<li class="bad">No audit</li>
+<li class="bad">Token leak risk</li>
+</ul>
+
+
+<h3>Model 2 — Per User Token</h3>
+
+<div class="diagram">
+
+IDE
+↓
+MCP Server
+(user token)
+↓
+Service API
+
+</div>
+
+<ul>
+<li class="good">User audit</li>
+<li class="good">RBAC support</li>
+<li>Token management required</li>
+</ul>
+
+
+<h3>Model 3 — MCP Gateway + API Proxy</h3>
+
+<div class="diagram">
+
+IDE
+↓
+MCP Gateway
+↓
+API Proxy
+↓
+Auth / SSO
+↓
+Secret Manager
+↓
+Service API
+
+</div>
+
+<p>
+Đây là kiến trúc production được khuyến nghị.
+</p>
+
+
+<h2>3. Tech Stack Reference</h2>
+
+<table>
+
+<tr>
+<th>Layer</th>
+<th>Tech Options</th>
+</tr>
+
+<tr>
+<td>MCP Runtime</td>
+<td>Node MCP SDK / Python MCP SDK / FastAPI</td>
+</tr>
+
+<tr>
+<td>API Proxy</td>
+<td>LiteLLM Proxy / Kong / Envoy / NGINX</td>
+</tr>
+
+<tr>
+<td>Identity</td>
+<td>Keycloak / Auth0 / Okta</td>
+</tr>
+
+<tr>
+<td>Secrets</td>
+<td>Vault / AWS Secrets Manager</td>
+</tr>
+
+<tr>
+<td>Policy Engine</td>
+<td>OPA / Cedar / Casbin</td>
+</tr>
+
+<tr>
+<td>Observability</td>
+<td>Prometheus / Grafana / OpenTelemetry</td>
+</tr>
+
+<tr>
+<td>Deployment</td>
+<td>Kubernetes / Helm / Docker</td>
+</tr>
+
+</table>
+
+
+<h2>4. LiteLLM as API Proxy</h2>
+
+<div class="diagram">
+
+IDE
+↓
+MCP Gateway
+↓
+LiteLLM Proxy
+↓
+Internal API
+
+</div>
+
+<pre>
+
+litellm --config config.yaml
+
+</pre>
+
+<pre>
+
+model_list:
+- model_name: securescan
+  litellm_params:
+    api_base: https://securescan.internal/api
+
+</pre>
+
+
+<h2>5. MCP Control Plane Architecture</h2>
+
+<p>
+Hệ thống quản lý MCP nên tách thành Control Plane và Data Plane.
+</p>
+
+<div class="diagram">
+
+Control Plane
+- Tool registry
+- Policy engine
+- RBAC
+- Audit logs
+
+↓
+
+MCP Gateway Runtime
+
+</div>
+
+
+<h2>6. Control Plane Components</h2>
+
+<table>
+
+<tr>
+<th>Component</th>
+<th>Purpose</th>
+</tr>
+
+<tr>
+<td>Tool Registry</td>
+<td>Store tool metadata</td>
+</tr>
+
+<tr>
+<td>Policy Engine</td>
+<td>Control AI tool permissions</td>
+</tr>
+
+<tr>
+<td>RBAC</td>
+<td>User access control</td>
+</tr>
+
+<tr>
+<td>Audit Log</td>
+<td>Track AI tool usage</td>
+</tr>
+
+</table>
+
+
+<h2>7. Tool Registry Example</h2>
+
+<pre>
+
+tool:
+  name: sonar_find_issue
+  service: sonar
+  permissions:
+    - project_read
+  rate_limit: 30/min
+
+</pre>
+
+
+<h2>8. MCP Tool Lifecycle State Machine</h2>
+
+<div class="mermaid">
+
+stateDiagram-v2
+
+[*] --> REGISTERED
+REGISTERED --> VALIDATED
+VALIDATED --> ENABLED
+ENABLED --> ACTIVE
+ACTIVE --> RATE_LIMITED
+ACTIVE --> DISABLED
+DISABLED --> DEPRECATED
+
+</div>
+
+
+<h2>9. MCP Request Execution State Machine</h2>
+
+<div class="mermaid">
+
+stateDiagram-v2
+
+[*] --> REQUEST_RECEIVED
+REQUEST_RECEIVED --> AUTHENTICATED
+AUTHENTICATED --> POLICY_CHECK
+POLICY_CHECK --> RATE_LIMIT_CHECK
+RATE_LIMIT_CHECK --> TOOL_EXECUTION
+TOOL_EXECUTION --> RESPONSE_RETURN
+
+AUTHENTICATED --> AUTH_FAILED
+POLICY_CHECK --> POLICY_DENIED
+RATE_LIMIT_CHECK --> RATE_LIMITED
+TOOL_EXECUTION --> TOOL_ERROR
+
+</div>
+
+
+<h2>10. Threat Model (AI + MCP)</h2>
+
+<table>
+
+<tr>
+<th>Threat</th>
+<th>Description</th>
+<th>Mitigation</th>
+</tr>
+
+<tr>
+<td>Token leak</td>
+<td>Backend token exposed</td>
+<td>Store token in Vault</td>
+</tr>
+
+<tr>
+<td>Prompt Injection</td>
+<td>AI tricked to call sensitive tools</td>
+<td>Tool permission control</td>
+</tr>
+
+<tr>
+<td>Privilege escalation</td>
+<td>User access unauthorized resource</td>
+<td>RBAC + per-user token</td>
+</tr>
+
+<tr>
+<td>API abuse</td>
+<td>AI generating too many calls</td>
+<td>Rate limiting</td>
+</tr>
+
+<tr>
+<td>Data exfiltration</td>
+<td>AI leaking internal data</td>
+<td>Proxy filtering + audit logs</td>
+</tr>
+
+</table>
+
+
+<h2>11. Kubernetes Deployment</h2>
+
+<pre>
+
+services:
+
+mcp-gateway
+litellm-proxy
+vault
+control-plane
+database
+
+</pre>
+
+<div class="diagram">
+
+Ingress
+↓
+MCP Gateway
+↓
+LiteLLM Proxy
+↓
+Internal Services
+
+</div>
+
+
+<h2>12. Suggested Project Structure</h2>
+
+<pre>
+
+mcp-control-platform/
+
+gateway/
+mcp-runtime
+
+proxy/
+litellm-config
+
+control-plane/
+api
+policy-engine
+tool-registry
+
+database/
+postgres
+
+observability/
+prometheus
+grafana
+
+deploy/
+helm
+k8s
+
+</pre>
+
+
+<h2>13. Recommended Architecture</h2>
+
+<table>
+
+<tr>
+<th>Scenario</th>
+<th>Recommended Model</th>
+</tr>
+
+<tr>
+<td>POC</td>
+<td>Shared Token</td>
+</tr>
+
+<tr>
+<td>Small Team</td>
+<td>Per-user MCP</td>
+</tr>
+
+<tr>
+<td>Enterprise</td>
+<td>MCP Gateway + API Proxy + Control Plane</td>
+</tr>
+
+</table>
+
+</body>
+</html>
